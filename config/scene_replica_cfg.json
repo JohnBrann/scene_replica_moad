@@ -1,0 +1,13 @@
+{
+  "april_tag": {
+    "APRILTAG_SIZE": 0.12,
+    "APRILTAG_FAMILY": "tag36h11",
+    "PB_RENDER": "ER_TINY_RENDERER",
+    "WORLD_OFFSET": [0.35, 0.35, 0.0],
+    "CAMERA_NEAR": 0.05,
+    "CAMERA_FAR": 10.0
+  },
+  "scene": {
+    "scene_number": "50"
+  }
+}

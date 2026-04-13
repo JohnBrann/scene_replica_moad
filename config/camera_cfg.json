@@ -1,0 +1,23 @@
+{
+  "camera": {
+    "width": 640,
+    "height": 480,
+    "camera_name": "default_cam",
+    "cam_K": [
+      [472.749279, 0.0, 319.981541],
+      [0.0, 474.226148, 242.755551],
+      [0.0, 0.0, 1.0]
+    ],
+    "distortion_model": "plumb_bob",
+    "distortion_coefficients": [
+      0.030318,
+      -0.062563,
+      -0.000081,
+      -0.000654,
+      0.0
+    ]
+  },
+  "input": {
+    "image_path": "frame.jpg"
+  }
+}
