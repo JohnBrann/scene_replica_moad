@@ -255,21 +255,26 @@ class MnetSceneReplica:
         )
 
     def load_assets(self):
+        self.model_lib = {}
+
+        # object_sets/<object_set>/<object_name>/fused/<object_name>.urdf
         self.urdf_models = glob.glob(
-            os.path.join(self.object_model_path, "**/model.urdf")
+            os.path.join(self.object_model_path, "**", "fused", "*.urdf"),
+            recursive=True,
         )
-        folders = sorted(
-            set(os.path.basename(os.path.dirname(f)) for f in self.urdf_models)
-        )
-        for folder in folders:
-            urdf_path = os.path.join(self.object_model_path, folder, "model.urdf")
+
+        for urdf_path in self.urdf_models:
+            fused_dir = os.path.dirname(urdf_path)
+            object_dir = os.path.dirname(fused_dir)
+
+            object_name = os.path.basename(object_dir)
 
             # canonical key
-            self.model_lib[folder] = urdf_path
+            self.model_lib[object_name] = urdf_path
 
-            if "_" in folder and folder.split("_", 1)[0].isdigit():
-                npz_key = folder.split("_", 1)[1]
-                self.model_lib[npz_key] = urdf_path
+            # Also allow lookup by URDF filename without extension
+            urdf_key = os.path.splitext(os.path.basename(urdf_path))[0]
+            self.model_lib[urdf_key] = urdf_path
 
         self.scene_layouts = glob.glob(os.path.join(self.scene_path, "*.npz"))
 
