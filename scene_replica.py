@@ -190,6 +190,69 @@ class MnetSceneReplica:
             baseCollisionShapeIndex=-1,
             basePosition=np.array([-half_length, 0, z_pos])+WORLD_OFFSET
         )
+    def create_visual_only_circle(self, diameter: float = 0.5, notch_size: float = 0.005):
+        """
+        Creates a visual-only circle (approximated by thin box segments) with a
+        small notch box indicating the zero rotational position (along +X axis).
+
+        Args:
+            diameter:   diameter of the circle in metres
+            notch_size: side length of the notch box in metres
+        """
+        radius     = diameter / 2.0
+        thickness  = 0.005          # bar cross-section
+        z_pos      = thickness / 2.0
+        num_segs   = 32             # more segments = smoother circle
+        color_ring = [1, 0, 0, 1]  # red ring
+        color_notch= [1, 0.5, 0, 1]  # orange notch
+
+        for i in range(num_segs):
+            angle_start = (2 * np.pi * i)       / num_segs
+            angle_end   = (2 * np.pi * (i + 1)) / num_segs
+            angle_mid   = (angle_start + angle_end) / 2.0
+
+            # Centre of this segment
+            cx = radius * np.cos(angle_mid)
+            cy = radius * np.sin(angle_mid)
+
+            # Chord length between the two endpoints
+            chord = 2 * radius * np.sin(np.pi / num_segs)
+
+            # Half extents: long axis = half chord, short axes = thickness
+            half_extents = [chord / 2.0, thickness / 2.0, thickness / 2.0]
+
+            vis = p.createVisualShape(
+                shapeType  = p.GEOM_BOX,
+                halfExtents= half_extents,
+                rgbaColor  = color_ring,
+            )
+
+            # Quaternion rotating the segment to sit tangent to the circle
+            # Each segment is rotated by angle_mid around Z
+            # quat = p.getQuaternionFromEuler([0, 0, angle_mid])
+            quat = p.getQuaternionFromEuler([0, 0, angle_mid + np.pi / 2])
+
+            p.createMultiBody(
+                baseMass               = 0,
+                baseVisualShapeIndex   = vis,
+                baseCollisionShapeIndex= -1,
+                basePosition           = np.array([cx, cy, z_pos]) + WORLD_OFFSET,
+                baseOrientation        = quat,
+            )
+
+        # --- Notch box at +X (zero rotation position) ---
+        notch_vis = p.createVisualShape(
+            shapeType  = p.GEOM_BOX,
+            halfExtents= [0.05, notch_size / 2.0, notch_size / 2.0],
+            rgbaColor  = color_notch,
+        )
+        p.createMultiBody(
+            baseMass               = 0,
+            baseVisualShapeIndex   = notch_vis,
+            baseCollisionShapeIndex= -1,
+            # Sit just outside the ring at angle=0 (+X axis)
+            basePosition           = np.array([radius + notch_size * 0.75, 0, z_pos]) + WORLD_OFFSET,
+        )
 
     def load_assets(self):
         self.urdf_models = glob.glob(
@@ -212,7 +275,9 @@ class MnetSceneReplica:
 
     def load_scene(self, scene_file):
         p.resetSimulation()
-        self.create_visual_only_bars()
+        # self.create_visual_only_bars()
+        self.create_visual_only_circle(diameter=0.61)
+        self.create_visual_only_circle(diameter=0.45)
         data = np.load(os.path.join(self.scene_path, scene_file), allow_pickle=True)
         model_names = data["model_names"]
         poses = data["poses"]
@@ -305,3 +370,30 @@ class MnetSceneReplica:
             self.scene_with_axis, self.cam_K, rvec, tvec, axis_len=APRILTAG_SIZE * 0.6
         )
         return self.scene_with_axis
+    
+    def update_camera(self, R_cw_cv: np.ndarray, t_cw_cv: np.ndarray):
+        """
+        Update the view matrix with a new tag pose and re-render.
+        Allows camera switching without reloading the scene.
+
+        Args:
+            R_cw_cv:  [3x3] rotation matrix (tag→camera, OpenCV convention, pre-flipped)
+            t_cw_cv:  [3]   translation vector (tag position in camera frame)
+        """
+        self.R_cw_cv = R_cw_cv
+        self.t_cw_cv = np.asarray(t_cw_cv, dtype=float).reshape(3)
+        self._compute_view_matrix()
+
+    def update_and_render(self, R_cw_cv: np.ndarray, t_cw_cv: np.ndarray) -> np.ndarray:
+        """
+        Convenience method: update camera pose and immediately return a fresh render.
+
+        Args:
+            R_cw_cv:  [3x3] rotation matrix
+            t_cw_cv:  [3]   translation vector
+
+        Returns:
+            rgba: [H, W, 4] uint8 RGBA image
+        """
+        self.update_camera(R_cw_cv, t_cw_cv)
+        return self.render_scene_image()
