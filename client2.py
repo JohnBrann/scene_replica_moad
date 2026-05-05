@@ -43,21 +43,21 @@ except Exception as e:
 # =============================================================================
 # CONFIG
 # =============================================================================
-
+CALIBRATION = "18mm"
 SCRIPT_DIR      = Path(__file__).parent.resolve()
-CAM_PARAMS_PATH = SCRIPT_DIR / "../moad_cui/calibration/55mm" / "cam_parameters.json"
-ANCHORS_PATH    = SCRIPT_DIR / "../moad_cui/calibration/55mm" / "scene_anchors.json"
-ANCHOR_CAM      = "cam4"
+CAM_PARAMS_PATH = SCRIPT_DIR / f"../moad_cui/calibration/{CALIBRATION}" / "cam_parameters.json"
+ANCHORS_PATH    = SCRIPT_DIR / f"../moad_cui/calibration/{CALIBRATION}" / "scene_anchors.json"
+ANCHOR_CAM      = "cam3"
 
-SCENE_SCALE = 8.14#1.0#8.14   # tune this — metres to NeRF scene units
+SCENE_SCALE =  9.044#9.079#8.697#8.14#1.0#8.14   # tune this — metres to NeRF scene units
 # Background image shown behind the render — swap this path as needed
 # BACKGROUND_IMAGE = SCRIPT_DIR / "background.jpg"
-IMAGE_DIR = "/home/csrobot/MOAD_DATA/artag_test/pose-a/DSLR/"
-IMAGE_POSITION = 0
-BACKGROUND_IMAGE = f"/home/csrobot/MOAD_DATA/artag_test/pose-a/DSLR/{ANCHOR_CAM}_000_img.jpg"
+IMAGE_DIR = f"/home/csrobot/MOAD_DATA/artag_test_{CALIBRATION}/pose-a/DSLR/"
+IMAGE_POSITION = 10
+# BACKGROUND_IMAGE = f"/home/csrobot/MOAD_DATA/artag_test/pose-a/DSLR/{ANCHOR_CAM}_000_img.jpg"
 
-SCENE_ID        = "1.npz"              # scene file to load
-RENDER_SCALE   = 0.25                 # scale factor for display window (images are large)
+SCENE_ID        = "moad_gears_close.npz"              # scene file to load
+RENDER_SCALE   = 0.25                 # scale factor for intrinsics / loading images
 DISPLAY_SCALE   = 1.0                # scale factor for display window (images are large)
 OFFSET_STEP     = 0.005               # metres per keypress
 ROTATION_STEP_LARGE = 10.0             # degrees per A/D keypress
@@ -79,10 +79,11 @@ def load_cam_parameters(path: Path) -> tuple[dict, dict]:
         t = np.array(cams[name]["extrinsics"]["c2w"])[:3, 3]
         print(f"{name}: {t}  |t|={np.linalg.norm(t):.3f}")
     # Estimate scale from two cameras whose physical separation you know
-    t_cam3 = np.array(cams["cam3"]["extrinsics"]["c2w"])[:3, 3]
+    t_cam3 = np.array(cams["cam1"]["extrinsics"]["c2w"])[:3, 3]
     t_cam5 = np.array(cams["cam5"]["extrinsics"]["c2w"])[:3, 3]
     nerf_dist = np.linalg.norm(t_cam3 - t_cam5)
-    physical_dist_metres = 0.6  # measure this physically NOTE: THIS IS A ROUGH ESTIMATE
+    # Initial estimate from 3 -> 5 was 0.6m
+    physical_dist_metres = 1.07#0.6  # measure this physically NOTE: THIS IS A ROUGH ESTIMATE
     scale = nerf_dist / physical_dist_metres
     print(f"Scale factor: {scale:.3f}")
     # =====================
@@ -186,7 +187,7 @@ def get_tag_pose_in_camera(
     T_ct_target[:3, 3] /= scene_scale
 
     tag_T, tag_R = T_ct_target[:3, :3], T_ct_target[:3, 3]
-    print(f"New Transform ({target_cam}): \n{T_ct_target}")
+    # print(f"New Transform ({target_cam}): \n{T_ct_target}")
     return tag_T, tag_R
  
 def build_cam_K(intrinsics: dict) -> np.ndarray:
@@ -319,6 +320,7 @@ def main():
 
     # Scale intrinsics (images are scaled accordingly when loaded)
     intrinsics = scale_intrinsics(intrinsics_full, RENDER_SCALE)
+    print(f"Intrinsics after scaling (x{RENDER_SCALE}):\n{intrinsics}")
     
     # Load AR Anchor Calibrations, set anchor camera
     print("Loading anchor detections...")

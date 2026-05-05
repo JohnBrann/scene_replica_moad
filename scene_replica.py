@@ -134,7 +134,7 @@ class MnetSceneReplica:
         self.model_lib = {}
         self.projection_matrix = None
         self.view_matrix = None
-        self.object_model_path = os.path.join("assets", "object_sets", "ycb")
+        self.object_model_path = os.path.join("assets", "object_sets", "moad")
         self.scene_path = os.path.join("assets", "scenes")
         self.near = CAMERA_NEAR
         self.far = CAMERA_FAR
@@ -241,18 +241,19 @@ class MnetSceneReplica:
             )
 
         # --- Notch box at +X (zero rotation position) ---
-        notch_vis = p.createVisualShape(
-            shapeType  = p.GEOM_BOX,
-            halfExtents= [0.05, notch_size / 2.0, notch_size / 2.0],
-            rgbaColor  = color_notch,
-        )
-        p.createMultiBody(
-            baseMass               = 0,
-            baseVisualShapeIndex   = notch_vis,
-            baseCollisionShapeIndex= -1,
-            # Sit just outside the ring at angle=0 (+X axis)
-            basePosition           = np.array([radius + notch_size * 0.75, 0, z_pos]) + WORLD_OFFSET,
-        )
+        if notch_size is not None:
+            notch_vis = p.createVisualShape(
+                shapeType  = p.GEOM_BOX,
+                halfExtents= [0.1, notch_size / 2.0, notch_size / 2.0],
+                rgbaColor  = color_notch,
+            )
+            p.createMultiBody(
+                baseMass               = 0,
+                baseVisualShapeIndex   = notch_vis,
+                baseCollisionShapeIndex= -1,
+                # Sit just outside the ring at angle=0 (+X axis)
+                basePosition           = np.array([radius + notch_size * 0.75, 0, z_pos]) + WORLD_OFFSET,
+            )
 
     def load_assets(self):
         self.model_lib = {}
@@ -281,7 +282,7 @@ class MnetSceneReplica:
     def load_scene(self, scene_file):
         p.resetSimulation()
         # self.create_visual_only_bars()
-        self.create_visual_only_circle(diameter=0.61)
+        self.create_visual_only_circle(diameter=0.61,notch_size=None)
         self.create_visual_only_circle(diameter=0.45)
         data = np.load(os.path.join(self.scene_path, scene_file), allow_pickle=True)
         model_names = data["model_names"]
