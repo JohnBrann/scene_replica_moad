@@ -1,37 +1,18 @@
 # Implementation of the class for rendering real world scene layouts for grasping in clutters task
-# DO NOT MODIFY THIS FILE
-# Contact: support@manipulation-net.org
 
 import os
-import sys
 import glob
-import time
-import json
-from pathlib import Path
+import math
 
 try:
-    import cv2
+    # import cv2
     import numpy as np
     import pybullet as p
-    from pupil_apriltags import Detector
 
 except Exception as e:
     print(f"Error importing modules: {e}")
     print("Please ensure all required modules are installed and properly configured.")
     exit()
-
-
-# Open Config File
-with open("./config/scene_replica_cfg.json", "r") as f:
-    cfg = json.load(f)
-
-APRILTAG_SIZE = cfg["april_tag"]["APRILTAG_SIZE"]
-APRILTAG_FAMILY = cfg["april_tag"]["APRILTAG_FAMILY"]
-PB_RENDER = getattr(p, cfg["april_tag"]["PB_RENDER"])
-WORLD_OFFSET = np.array(cfg["april_tag"]["WORLD_OFFSET"])
-CAMERA_NEAR = cfg["april_tag"]["CAMERA_NEAR"]
-CAMERA_FAR = cfg["april_tag"]["CAMERA_FAR"]
-
 
 def Rt_to_T(R, t):
     R = np.asarray(R, dtype=float)
@@ -49,36 +30,6 @@ def T_inv(T):
     Ti[:3, :3] = R.T
     Ti[:3, 3] = -R.T @ t
     return Ti
-
-
-def detect_apriltag(apriltag_img, cam_K: np.ndarray):
-    """
-    Detect the apriltag in the image and return the tag id, corners, and the pose of the tag in the camera coordinate
-    """
-    assert cam_K.shape == (3, 3), "Camera intrinsic matrix must be a 3x3 matrix"
-    fx, fy, cx, cy = cam_K[0, 0], cam_K[1, 1], cam_K[0, 2], cam_K[1, 2]
-    gray = cv2.cvtColor(apriltag_img, cv2.COLOR_BGR2GRAY)
-    det = Detector(families="tag36h11").detect(
-        gray,
-        estimate_tag_pose=True,
-        camera_params=(fx, fy, cx, cy),
-        tag_size=APRILTAG_SIZE,
-    )
-    detections = det
-
-    if not det:
-        return None
-
-    det = max(detections, key=lambda d: getattr(d, "decision_margin", 0.0))
-    tag_id = getattr(det, "tag_id", 0)
-    corners = np.int32(getattr(det, "corners", [])) if hasattr(det, "corners") else None
-    R_cw_cv = det.pose_R
-    t_cw_cv = np.asarray(det.pose_t, dtype=float).reshape(3)
-    R_FLIP_WORLD = np.diag([1.0, -1.0, -1.0])  # flip the world coordinate
-
-    R_cw_cv = R_cw_cv @ R_FLIP_WORLD.T
-
-    return det, tag_id, corners, R_cw_cv, t_cw_cv
 
 
 def make_transparent(rgb, seg, alpha=0.6):
@@ -118,26 +69,33 @@ def resize_seg(arr, h, w):
     return a.reshape(h, w).astype(np.int32)
 
 
-class MnetSceneReplica:
+class TaglessSceneReplica:
     def __init__(
-        self, cam_K, W, H, det, tag_id, corners, R_cw_cv, t_cw_cv
+        self, cam_K, W, H, R_cw_cv, t_cw_cv, scene_config
     ):
+        # Initial state
         self.pb = p.connect(p.DIRECT)
         self.cam_K = cam_K
         self.W = W
         self.H = H
-        self.det = det
-        self.tag_id = tag_id
-        self.corners = corners
         self.R_cw_cv = R_cw_cv
         self.t_cw_cv = t_cw_cv
+
+        # Configuration
+        # self.config = scene_config
+        self.object_model_path = os.path.join("assets", "object_sets", "moad") # TODO: Add this to config
+        self.scene_path = os.path.join("assets", "scenes") # TODO: Add this to config
+        self.near = scene_config["CAMERA_NEAR"] 
+        self.far = scene_config["CAMERA_FAR"] 
+        self.WORLD_OFFSET = scene_config["WORLD_OFFSET"]
+        print(f"WORLD_OFFSET = {self.WORLD_OFFSET}")
+        self.PB_RENDER = scene_config["PB_RENDER"]
+        self.render_alpha = scene_config["render_alpha"]
+
+        # Internal states
         self.model_lib = {}
         self.projection_matrix = None
         self.view_matrix = None
-        self.object_model_path = os.path.join("assets", "object_sets", "moad")
-        self.scene_path = os.path.join("assets", "scenes")
-        self.near = CAMERA_NEAR
-        self.far = CAMERA_FAR
         self.urdf_models = []
         self.scene_layouts = []
         self.load_assets()
@@ -161,14 +119,14 @@ class MnetSceneReplica:
             baseMass=0,
             baseVisualShapeIndex=bar_visual_x,
             baseCollisionShapeIndex=-1,
-            basePosition=np.array([0, +half_length, z_pos])+WORLD_OFFSET
+            basePosition=np.array([0, +half_length, z_pos])+ self.WORLD_OFFSET
         )
 
         p.createMultiBody(
             baseMass=0,
             baseVisualShapeIndex=bar_visual_x,
             baseCollisionShapeIndex=-1,
-            basePosition=np.array([0, -half_length, z_pos])+WORLD_OFFSET
+            basePosition=np.array([0, -half_length, z_pos])+ self.WORLD_OFFSET
         )
 
         bar_visual_y = p.createVisualShape(
@@ -181,15 +139,16 @@ class MnetSceneReplica:
             baseMass=0,
             baseVisualShapeIndex=bar_visual_y,
             baseCollisionShapeIndex=-1,
-            basePosition=np.array([+half_length, 0, z_pos])+WORLD_OFFSET
+            basePosition=np.array([+half_length, 0, z_pos])+ self.WORLD_OFFSET
         )
 
         p.createMultiBody(
             baseMass=0,
             baseVisualShapeIndex=bar_visual_y,
             baseCollisionShapeIndex=-1,
-            basePosition=np.array([-half_length, 0, z_pos])+WORLD_OFFSET
+            basePosition=np.array([-half_length, 0, z_pos])+ self.WORLD_OFFSET
         )
+
     def create_visual_only_circle(self, diameter: float = 0.5, notch_size: float = 0.005):
         """
         Creates a visual-only circle (approximated by thin box segments) with a
@@ -236,7 +195,7 @@ class MnetSceneReplica:
                 baseMass               = 0,
                 baseVisualShapeIndex   = vis,
                 baseCollisionShapeIndex= -1,
-                basePosition           = np.array([cx, cy, z_pos]) + WORLD_OFFSET,
+                basePosition           = np.array([cx, cy, z_pos]),# + self.WORLD_OFFSET,
                 baseOrientation        = quat,
             )
 
@@ -252,10 +211,42 @@ class MnetSceneReplica:
                 baseVisualShapeIndex   = notch_vis,
                 baseCollisionShapeIndex= -1,
                 # Sit just outside the ring at angle=0 (+X axis)
-                basePosition           = np.array([radius + notch_size * 0.75, 0, z_pos]) + WORLD_OFFSET,
+                basePosition           = np.array([radius + notch_size * 0.75, 0, z_pos]),# + self.WORLD_OFFSET,
             )
 
-    def load_assets(self):
+    def create_visual_only_origin(self, width: float = 0.5, thickness: float = 0.001, color = [1, 0, 0, 0.8]):
+        z_pos      = thickness / 2.0
+        half_extents1 = [width / 2.0, width / 2.0, thickness / 2.0]
+
+        vis = p.createVisualShape(
+            shapeType  = p.GEOM_BOX,
+            halfExtents= half_extents1,
+            rgbaColor  = color,
+        )
+        half_extents2 = [width / 20.0, width / 20.0, thickness / 2.0]
+
+        vis2 = p.createVisualShape(
+            shapeType  = p.GEOM_BOX,
+            halfExtents= half_extents2,
+            rgbaColor  = [0,1,0,0.5],
+        )
+        quat = p.getQuaternionFromEuler([0, 0, 0])
+        p.createMultiBody(
+                baseMass               = 0,
+                baseVisualShapeIndex   = vis,
+                baseCollisionShapeIndex= -1,
+                basePosition           = np.array([0, 0, z_pos]) + self.WORLD_OFFSET, #TODO: Apply calibration offset?
+                baseOrientation        = quat,
+            )
+        p.createMultiBody(
+                baseMass               = 0,
+                baseVisualShapeIndex   = vis2,
+                baseCollisionShapeIndex= -1,
+                basePosition           = np.array([0, 0, z_pos+0.0001]) + self.WORLD_OFFSET, #TODO: Apply calibration offset?
+                baseOrientation        = quat,
+            )
+
+    def load_assets(self, verbose=True):
         self.model_lib = {}
 
         # object_sets/<object_set>/<object_name>/fused/<object_name>.urdf
@@ -276,24 +267,34 @@ class MnetSceneReplica:
             # Also allow lookup by URDF filename without extension
             urdf_key = os.path.splitext(os.path.basename(urdf_path))[0]
             self.model_lib[urdf_key] = urdf_path
+        if verbose: print(f"Found {len(self.model_lib.keys())} object model urdf files...")
 
         self.scene_layouts = glob.glob(os.path.join(self.scene_path, "*.npz"))
+        if verbose: print(f"Found {len(self.scene_layouts)} scene layout npz files...")
 
-    def load_scene(self, scene_file):
+    def load_scene(self, scene_file, verbose=True):
+        if verbose: print(f"Loading Scene: \"{scene_file}\"...")
         p.resetSimulation()
+        # Create Visual Markers
         # self.create_visual_only_bars()
-        self.create_visual_only_circle(diameter=0.61,notch_size=None)
+        self.create_visual_only_circle(diameter=0.6,notch_size=None)
         self.create_visual_only_circle(diameter=0.45)
+        # self.create_visual_only_origin(width=0.5,color=[0,0,1,0.5])
+
+        # Load Scene Objects
         data = np.load(os.path.join(self.scene_path, scene_file), allow_pickle=True)
         model_names = data["model_names"]
         poses = data["poses"]
         for model_name, pose in zip(model_names, poses):
             p.loadURDF(
                 self.model_lib[model_name],
-                basePosition=np.array(pose[:3]) + WORLD_OFFSET,
+                basePosition=np.array(pose[:3]) + self.WORLD_OFFSET,
                 baseOrientation=np.array(pose[3:]),
                 useFixedBase=True,
             )
+        
+
+        if verbose: self.print_scene_objects()
 
     def _compute_projection_matrix(self):
         self.fx = self.cam_K[0, 0]
@@ -330,52 +331,22 @@ class MnetSceneReplica:
         )
 
     def render_scene_image(self):
+        RENDERER = getattr(p, self.PB_RENDER)
         img = p.getCameraImage(
             self.W,
             self.H,
             viewMatrix=self.view_matrix,
             projectionMatrix=self.projection_matrix,
             shadow=0,
-            renderer=PB_RENDER,
+            renderer=RENDERER,
         )
 
         self.rgb = resize_rgba(img[2], self.H, self.W)
         self.seg = resize_seg(img[4], self.H, self.W)
-        self.rgba = make_transparent(self.rgb, self.seg)
+        self.rgba = make_transparent(self.rgb, self.seg, alpha=self.render_alpha)
         return self.rgba
 
-    def draw_apriltag_frame(self, rgba_img, axis_len=0.02):
-        def draw_axes(img, K, rvec, tvec, axis_len=0.02):
-            axes_3d = np.float32(
-                [[0, 0, 0], [axis_len, 0, 0], [0, axis_len, 0], [0, 0, axis_len]]
-            )
-            pts, _ = cv2.projectPoints(axes_3d, rvec, tvec, K, np.zeros(5, dtype=float))
-            p0, px, py, pz = pts.reshape(-1, 2).astype(int)
-            cv2.line(img, tuple(p0), tuple(px), (255, 0, 0, 255), 2)  # X red
-            cv2.line(img, tuple(p0), tuple(py), (0, 255, 0, 255), 2)  # Y green
-            cv2.line(img, tuple(p0), tuple(pz), (0, 0, 255, 255), 2)  # Z blue
-
-        self.scene_with_axis = rgba_img.copy()
-
-        center = tuple(
-            np.int32(getattr(self.det, "center", np.mean(self.corners, axis=0)))
-        )
-
-        cv2.putText(
-            self.scene_with_axis,
-            f"tag {self.tag_id}",
-            (center[0] + 8, center[1] - 8),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 0, 0, 255),
-            2,
-        )
-        rvec, _ = cv2.Rodrigues(self.R_cw_cv)
-        tvec = self.t_cw_cv.reshape(3, 1)
-        draw_axes(
-            self.scene_with_axis, self.cam_K, rvec, tvec, axis_len=APRILTAG_SIZE * 0.6
-        )
-        return self.scene_with_axis
+    
     
     def update_camera(self, R_cw_cv: np.ndarray, t_cw_cv: np.ndarray):
         """
@@ -403,3 +374,34 @@ class MnetSceneReplica:
         """
         self.update_camera(R_cw_cv, t_cw_cv)
         return self.render_scene_image()
+    
+
+    def print_scene_objects(self, physics_client: int = 0) -> None:
+        """
+        Print the position and orientation of every body currently loaded in a
+        PyBullet simulation, formatted for easy reading.
+
+        Args:
+            physics_client: PyBullet physics client ID (default 0).
+        """
+        num_bodies = p.getNumBodies(physicsClientId=physics_client)
+
+        print("\n" + "═" * 64)
+        print(f"  SCENE OBJECTS  ({num_bodies} bodies total, ignoring debug visuals)")
+        print("═" * 64)
+
+        for i in range(num_bodies):
+            body_id   = p.getBodyUniqueId(i, physicsClientId=physics_client)
+            body_name = p.getBodyInfo(body_id, physicsClientId=physics_client)[1].decode("utf-8")
+            pos, quat = p.getBasePositionAndOrientation(body_id, physicsClientId=physics_client)
+            if body_name == '': continue
+            # Convert quaternion (x,y,z,w) → Euler angles in degrees for readability
+            euler_rad = p.getEulerFromQuaternion(quat)
+            euler_deg = tuple(math.degrees(a) for a in euler_rad)
+
+            print(f"\n  [{i}]  '{body_name}'  (id={body_id})")
+            print(f"       Position  :  x={pos[0]:+.4f}   y={pos[1]:+.4f}   z={pos[2]:+.4f}")
+            print(f"       Quaternion:  x={quat[0]:+.4f}   y={quat[1]:+.4f}   z={quat[2]:+.4f}   w={quat[3]:+.4f}")
+            print(f"       Euler (°) :  r={euler_deg[0]:+.2f}   p={euler_deg[1]:+.2f}   y={euler_deg[2]:+.2f}")
+
+        print("\n" + "═" * 64 + "\n")

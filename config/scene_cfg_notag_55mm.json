@@ -1,0 +1,11 @@
+{
+  "scene_file": "moad_gears_close.npz",
+  "PB_RENDER": "ER_TINY_RENDERER",
+  "WORLD_OFFSET": [0, 0, -0.0142],
+  "CALIBRATION_OFFSET": [0.025, 0.01, -0.015],
+  "CAMERA_NEAR": 0.05,
+  "CAMERA_FAR": 10.0,
+
+  "render_scale": 0.25,
+  "render_alpha": 0.6
+}

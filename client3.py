@@ -37,7 +37,7 @@ import cv2
 from pathlib import Path
 
 try:
-    from scene_replica import MnetSceneReplica, Rt_to_T, T_inv
+    from scene_replica_notag import TaglessSceneReplica, Rt_to_T, T_inv
     import pybullet as p
 except Exception as e:
     print(f"Import error: {e}")
@@ -48,16 +48,16 @@ except Exception as e:
 # CONFIG
 # =============================================================================
 
-CALIBRATION     = "test"
+CALIBRATION     = "test_55mm"
 SCRIPT_DIR      = Path(__file__).parent.resolve()
 CAM_PARAMS_PATH = SCRIPT_DIR / f"../moad_cui/calibration/{CALIBRATION}" / "cam_parameters.json"
 
-IMAGE_DIR       = f"/home/csrobot/MOAD_DATA/artag_test_18mm/pose-a/DSLR/"
+IMAGE_DIR       = f"/home/csrobot/MOAD_DATA/artag_test_55mm/pose-a/DSLR/"
 IMAGE_POSITION  = 10
 
-SCENE_ID            = "moad_gears_close.npz"
-RENDER_SCALE        = 0.25      # scale intrinsics and images to this fraction
-DISPLAY_SCALE       = 1.0       # additional display scaling (1.0 = no extra scaling)
+SCENE_CONFIG = SCRIPT_DIR / "config/scene_cfg_notag_55mm.json" 
+
+DISPLAY_SCALE       = 1.0       # additional output image scaling (1.0 = no extra scaling)
 OFFSET_STEP         = 0.005     # metres per keypress
 ROTATION_STEP_LARGE = 10.0      # degrees per A/D keypress
 ROTATION_STEP_SMALL = 5.0       # degrees per W/S keypress
@@ -277,9 +277,14 @@ def main():
     print("\nLoading camera parameters...")
     cameras, intrinsics_full, scale_info = load_cam_parameters(CAM_PARAMS_PATH)
     cam_names = sorted(cameras.keys())
+    
+    # --- Load Scene Config --- 
+    with open(SCENE_CONFIG, "r") as f:
+        scene_cfg = json.load(f)
 
-    intrinsics = scale_intrinsics(intrinsics_full, RENDER_SCALE)
+    intrinsics = scale_intrinsics(intrinsics_full, scene_cfg["render_scale"])
     print(f"  Render resolution: {intrinsics['width']} x {intrinsics['height']}")
+
 
     # --- Load background images ---
     print("\nLoading background images...")
@@ -290,8 +295,8 @@ def main():
     # --- Interactive state ---
     current_cam_idx = 0
     turntable_deg   = 0.0
-    global_offset   = np.zeros(3, dtype=np.float64)
-    scene_scale =   scale_info["scale"]
+    global_offset   = np.asarray(scene_cfg["CALIBRATION_OFFSET"], dtype=np.float64) #np.zeros(3, dtype=np.float64)
+    scene_scale     = scale_info["scale"]
     needs_render    = True
     rgba_cache      = None
 
@@ -306,17 +311,15 @@ def main():
         initial_cam, cameras, turntable_deg, global_offset, scene_scale
     )
 
-    scene = MnetSceneReplica(
+    scene = TaglessSceneReplica(
         cam_K   = cam_K,
         W       = intrinsics["width"],
         H       = intrinsics["height"],
-        det     = None,
-        tag_id  = 0,        # unused — no AR tag involved
-        corners = None,
         R_cw_cv = R_init,
         t_cw_cv = t_init,
+        scene_config = scene_cfg
     )
-    scene.load_scene(SCENE_ID)
+    scene.load_scene(scene_cfg["scene_file"])
     print("  Scene loaded.\n")
 
     # --- CV window ---
