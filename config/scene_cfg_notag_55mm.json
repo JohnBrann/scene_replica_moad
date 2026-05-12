@@ -6,6 +6,6 @@
   "CAMERA_NEAR": 0.05,
   "CAMERA_FAR": 10.0,
 
-  "render_scale": 0.25,
+  "render_scale": 1.5,
   "render_alpha": 0.6
 }
