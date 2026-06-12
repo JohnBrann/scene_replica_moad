@@ -35,9 +35,9 @@ except ImportError:
 # CONFIG — adjust paths to match your asset layout
 # =============================================================================
 
-OBJECT_MODEL_PATH = os.path.join("assets", "object_sets", "ycb")
+OBJECT_MODEL_PATH = os.path.join("assets", "object_sets", "moad-atb1")
 SCENE_PATH        = os.path.join("assets", "scenes")
-WORLD_OFFSET      = np.array([1.0, 0.0, 0.0])  # match your scene_replica_cfg
+WORLD_OFFSET      = np.array([0.0, 0.0, 0.0])  # match your scene_replica_cfg
 
 # Initial camera view
 CAMERA_DISTANCE   = 1.2     # metres from target
@@ -52,10 +52,13 @@ CAMERA_TARGET     = [0, 0, 0]
 
 def build_model_lib(object_model_path: str) -> dict:
     """Scan YCB object folder and build name → urdf_path mapping."""
-    urdf_files = glob.glob(os.path.join(object_model_path, "**/model.urdf"))
+    model_pattern = os.path.join(object_model_path, "*/fused/*.urdf")
+    urdf_files = glob.glob(model_pattern)
+
     model_lib  = {}
     for urdf_path in urdf_files:
-        folder = os.path.basename(os.path.dirname(urdf_path))
+        folder = os.path.basename(os.path.dirname(os.path.dirname(urdf_path)))
+        print(f"Found Model: {folder}")
         model_lib[folder] = urdf_path
         # Also map the name without leading numeric prefix (e.g. "004_sugar_box" → "sugar_box")
         if "_" in folder and folder.split("_", 1)[0].isdigit():
@@ -126,7 +129,7 @@ def pick_scene(scene_dir: str, arg: str | None) -> str | None:
         return None
 
     # No arg — list available scenes and prompt
-    scenes = sorted(glob.glob(os.path.join(scene_dir, "*.npz")))
+    scenes = sorted(glob.glob(os.path.join(scene_dir,"*", "scene_replica.npz")))
     if not scenes:
         print(f"No .npz scenes found in {scene_dir}")
         print("Usage: python view_scene.py <path_to_scene.npz>")
@@ -134,7 +137,8 @@ def pick_scene(scene_dir: str, arg: str | None) -> str | None:
 
     print("\nAvailable scenes:")
     for i, s in enumerate(scenes):
-        print(f"  [{i+1:>2}] {Path(s).name}")
+        # print(f"  [{i+1:>2}] {Path(s).name}")
+        print(f"  [{i+1:>2}] {Path(s)}")
 
     try:
         choice = int(input("\nEnter number (or 0 to cancel): "))
