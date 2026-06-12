@@ -3,9 +3,9 @@
 ## Inspired by [SceneReplica](https://github.com/IRVLUTD/SceneReplica) and SceneReplica-related functionality from [ManipulationNet](https://github.com/ManipulationNet/mnet_client).
 ## Designed for scene replication using the [MOAD Data Collection Rig](https://www.robot-manipulation.org/nist-moad).  
 This implementation removes the need for AprilTag registration, instead relying on known camera intrinsics/extrinsics and turntable position to reliably project scenes onto images collected using the MOAD rig.   
+ 
+<img src="assets/replica_demo.gif" width="100%" alt="Demo">  
 
-![Demo](assets/replica_demo.gif)   
-  
 ## Installation
 You can install the dependencies with:
 
