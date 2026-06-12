@@ -71,8 +71,9 @@ def resize_seg(arr, h, w):
 
 class TaglessSceneReplica:
     def __init__(
-        self, cam_K, W, H, R_cw_cv, t_cw_cv, scene_config
-    ):
+        self, cam_K, W, H, R_cw_cv, t_cw_cv, scene_config, scene_path=None, model_library_path=None
+    ):  
+        print("\n=== Initializing Scene Replica Object ===")
         # Initial state
         self.pb = p.connect(p.DIRECT)
         self.cam_K = cam_K
@@ -83,14 +84,25 @@ class TaglessSceneReplica:
 
         # Configuration
         # self.config = scene_config
-        self.object_model_path = os.path.join("assets", "object_sets", "moad") # TODO: Add this to config
-        self.scene_path = os.path.join("assets", "scenes") # TODO: Add this to config
+        if model_library_path is None:
+            self.object_model_path = scene_config["model_library_dir"]
+        else:
+            self.object_model_path = model_library_path
+        if scene_path is None:
+            self.scene_path = scene_config["scenes_dir"]
+        else:
+            self.scene_path = scene_path
         self.near = scene_config["CAMERA_NEAR"] 
         self.far = scene_config["CAMERA_FAR"] 
         self.WORLD_OFFSET = scene_config["WORLD_OFFSET"]
         print(f"WORLD_OFFSET = {self.WORLD_OFFSET}")
         self.PB_RENDER = scene_config["PB_RENDER"]
         self.render_alpha = scene_config["render_alpha"]
+
+        self.viz_rings = scene_config["visualize_rings"]
+        self.viz_rotation = scene_config["visualize_rotation"]
+        self.viz_floor = scene_config["visualize_floor"]
+        self.viz_center = scene_config["visualize_center"]
 
         # Internal states
         self.model_lib = {}
@@ -101,6 +113,15 @@ class TaglessSceneReplica:
         self.load_assets()
         self._compute_projection_matrix()
         self._compute_view_matrix()
+
+        # Print self.
+        print(f"Attributes: ")
+        print_len_only = ['urdf_models','model_lib']
+        for k, v in self.__dict__.items():
+            if k in print_len_only:
+                print(f" > {k}: [{len(v)} items]")
+            else:
+                print(f" > {k}: {v}")
 
     def create_visual_only_bars(self):
         length = 0.5          # length of each bar
@@ -149,7 +170,7 @@ class TaglessSceneReplica:
             basePosition=np.array([-half_length, 0, z_pos])+ self.WORLD_OFFSET
         )
 
-    def create_visual_only_circle(self, diameter: float = 0.5, notch_size: float = 0.005):
+    def create_visual_only_circle(self, diameter: float = 0.5):
         """
         Creates a visual-only circle (approximated by thin box segments) with a
         small notch box indicating the zero rotational position (along +X axis).
@@ -163,7 +184,6 @@ class TaglessSceneReplica:
         z_pos      = thickness / 2.0
         num_segs   = 32             # more segments = smoother circle
         color_ring = [1, 0, 0, 1]  # red ring
-        color_notch= [1, 0.5, 0, 1]  # orange notch
 
         for i in range(num_segs):
             angle_start = (2 * np.pi * i)       / num_segs
@@ -199,22 +219,26 @@ class TaglessSceneReplica:
                 baseOrientation        = quat,
             )
 
-        # --- Notch box at +X (zero rotation position) ---
-        if notch_size is not None:
-            notch_vis = p.createVisualShape(
-                shapeType  = p.GEOM_BOX,
-                halfExtents= [0.1, notch_size / 2.0, notch_size / 2.0],
-                rgbaColor  = color_notch,
-            )
-            p.createMultiBody(
-                baseMass               = 0,
-                baseVisualShapeIndex   = notch_vis,
-                baseCollisionShapeIndex= -1,
-                # Sit just outside the ring at angle=0 (+X axis)
-                basePosition           = np.array([radius + notch_size * 0.75, 0, z_pos]),# + self.WORLD_OFFSET,
-            )
+        
 
-    def create_visual_only_origin(self, width: float = 0.5, thickness: float = 0.001, color = [1, 0, 0, 0.8]):
+    def create_visual_only_rotation_indicator(self,dist_from_center=0.2,length=0.2,thickness=0.005):
+        color_notch= [1, 0.5, 0, 1]  # orange notch
+        z_pos      = thickness / 2.0
+        # --- Notch box at +X (zero rotation position) ---
+        notch_vis = p.createVisualShape(
+            shapeType  = p.GEOM_BOX,
+            halfExtents= [length / 2.0, thickness / 2.0, thickness / 2.0],
+            rgbaColor  = color_notch,
+        )
+        p.createMultiBody(
+            baseMass               = 0,
+            baseVisualShapeIndex   = notch_vis,
+            baseCollisionShapeIndex= -1,
+            # Positioned at angle=0 (+X axis)
+            basePosition           = np.array([dist_from_center + (length / 2.0), 0, z_pos]),# + self.WORLD_OFFSET,
+        )
+        
+    def create_visual_only_floor(self, width: float = 0.5, thickness: float = 0.001, color = [1, 0, 0, 0.8]):
         z_pos      = thickness / 2.0
         half_extents1 = [width / 2.0, width / 2.0, thickness / 2.0]
 
@@ -245,7 +269,24 @@ class TaglessSceneReplica:
                 basePosition           = np.array([0, 0, z_pos+0.0001]) + self.WORLD_OFFSET, #TODO: Apply calibration offset?
                 baseOrientation        = quat,
             )
-
+        
+    def create_visual_only_center_post(self,height=0.2,thickness=0.002):
+        color_notch= [1, 0.5, 0, 1]  # orange post
+        z_pos      = height / 2.0
+        # --- Center post showing +Z (zero rotation position) ---
+        notch_vis = p.createVisualShape(
+            shapeType  = p.GEOM_BOX,
+            halfExtents= [thickness / 2.0, thickness / 2.0, height / 2.0],
+            rgbaColor  = color_notch,
+        )
+        p.createMultiBody(
+            baseMass               = 0,
+            baseVisualShapeIndex   = notch_vis,
+            baseCollisionShapeIndex= -1,
+            # Positioned at center (+Z axis)
+            basePosition           = np.array([0, 0, z_pos]),# + self.WORLD_OFFSET,
+        )
+        
     def load_assets(self, verbose=True):
         self.model_lib = {}
 
@@ -277,9 +318,15 @@ class TaglessSceneReplica:
         p.resetSimulation()
         # Create Visual Markers
         # self.create_visual_only_bars()
-        self.create_visual_only_circle(diameter=0.6,notch_size=None)
-        self.create_visual_only_circle(diameter=0.45)
-        # self.create_visual_only_origin(width=0.5,color=[0,0,1,0.5])
+        if self.viz_rings:
+            self.create_visual_only_circle(diameter=0.6)
+            self.create_visual_only_circle(diameter=0.45) # TODO: Separate out rotation indicator to separate function
+        if self.viz_rotation:
+            self.create_visual_only_rotation_indicator(dist_from_center=0.1,length=0.25)
+        if self.viz_floor:
+            self.create_visual_only_floor(width=0.33,color=[0,0,1,0.5])
+        if self.viz_center:
+            self.create_visual_only_center_post(height=0.2)
 
         # Load Scene Objects
         data = np.load(os.path.join(self.scene_path, scene_file), allow_pickle=True)
