@@ -806,10 +806,10 @@ if __name__ == "__main__":
                              "data folder when confirming a scene replica")
     
     # ── Fallback Images (When live is not available) ────────────────────────────────────────────────
-    parser.add_argument("--fallback-images-dir", default="/home/csrobot/MOAD_DATA/artag_test_55mm/pose-a/DSLR",
+    parser.add_argument("--fallback-images-dir", default="assets/fallback_images/55mm",
                         help="Directory containing static background images "
                              "(cam#_NNN_img.jpg) used when no live views are found")
-    parser.add_argument("--fallback-images-pos", default=5,
+    parser.add_argument("--fallback-images-pos", default=0,
                         help="Turntable position (NNN) of fallback images.")
     parser.add_argument("--fallback-images-scale", default=0.16,
                         help="Scale fallback images (and intrinsics) for better rendering performance.")

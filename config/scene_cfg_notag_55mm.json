@@ -3,7 +3,7 @@
   "WORLD_OFFSET": [0, 0, 0],
   "CALIBRATION_OFFSET": [0.025, 0.01, -0.015],
   
-  "model_library_dir": "assets/object_sets/moad",
+  "model_library_dir": "assets/object_sets/moad-atb1",
   "scenes_dir": "assets/scenes",
   "PB_RENDER": "ER_TINY_RENDERER",
   "CAMERA_NEAR": 0.05,
