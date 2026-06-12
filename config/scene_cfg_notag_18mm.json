@@ -1,11 +1,19 @@
 {
   "scene_file": "moad_gears_close.npz",
-  "PB_RENDER": "ER_TINY_RENDERER",
   "WORLD_OFFSET": [0, 0, -0.0142],
   "CALIBRATION_OFFSET": [0.025, -0.01, -0.015],
+
+  "model_library_dir": "assets/object_sets/moad",
+  "scenes_dir": "assets/scenes",
+  "PB_RENDER": "ER_TINY_RENDERER",
   "CAMERA_NEAR": 0.05,
   "CAMERA_FAR": 10.0,
 
-  "render_scale": 1.0,
-  "render_alpha": 0.6
+  "render_scale": 1.5,
+  "render_alpha": 0.5,
+
+  "visualize_rings": true,
+  "visualize_rotation": true,
+  "visualize_floor": false,
+  "visualize_center": true
 }
