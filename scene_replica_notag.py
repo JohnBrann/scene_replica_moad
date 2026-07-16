@@ -102,7 +102,8 @@ class TaglessSceneReplica:
         self.viz_rings = scene_config["visualize_rings"]
         self.viz_rotation = scene_config["visualize_rotation"]
         self.viz_floor = scene_config["visualize_floor"]
-        self.viz_center = scene_config["visualize_center"]
+        self.viz_center_post = scene_config["visualize_center_post"]
+        self.viz_center_x = scene_config["visualize_center_x"]
 
         # Internal states
         self.model_lib = {}
@@ -179,8 +180,11 @@ class TaglessSceneReplica:
             diameter:   diameter of the circle in metres
             notch_size: side length of the notch box in metres
         """
-        radius     = diameter / 2.0
-        thickness  = 0.002          # bar cross-section
+        # bar cross-section (set to the thickness of the turntable ~6mm)
+        thickness  = 0.006          
+        # Subtracting thickness makes diameter define the OUTER diameter of the ring, set to turntable radius
+        radius     = (diameter / 2.0) - (thickness / 2.0) 
+        # Positive thickness/2 should place the bars on top of the turntable
         z_pos      = thickness / 2.0
         num_segs   = 32             # more segments = smoother circle
         color_ring = [1, 0, 0, 1]  # red ring
@@ -286,6 +290,48 @@ class TaglessSceneReplica:
             # Positioned at center (+Z axis)
             basePosition           = np.array([0, 0, z_pos]),# + self.WORLD_OFFSET,
         )
+
+    def create_visual_only_center_x(
+        self,
+        arm_length:  float = 0.15,
+        thickness:   float = 0.001,
+        angle_deg:   float = 45.0,
+        color:       list  = [1, 0, 0, 1],
+    ):
+        """
+        Creates a visual-only X marker at the world origin — two thin
+        box arms crossing at the centre, useful for aligning to the
+        turntable mounting bolts.
+
+        Args:
+            arm_length : full length of each arm in metres (centre to tip × 2)
+            thickness  : cross-section width/height of each arm in metres
+            angle_deg  : rotation of the X about Z in degrees.
+                        Default 45° gives a diagonal X pattern; 0° gives a + pattern.
+            color      : RGBA colour, default red
+        """
+        z_pos    = thickness / 2.0
+        angle_rad = np.radians(angle_deg)
+
+        # Two arms, 90° apart from each other, both centred at the origin
+        for i in range(2):
+            arm_angle = angle_rad + i * (np.pi / 2.0)
+            quat = p.getQuaternionFromEuler([0, 0, arm_angle])
+
+            vis = p.createVisualShape(
+                shapeType   = p.GEOM_BOX,
+                halfExtents = [arm_length / 2.0, thickness / 2.0, thickness / 2.0],
+                rgbaColor   = color,
+            )
+
+            p.createMultiBody(
+                baseMass                = 0,
+                baseVisualShapeIndex    = vis,
+                baseCollisionShapeIndex = -1,
+                basePosition            = np.array([0.0, 0.0, z_pos]),
+                baseOrientation         = quat,
+            )
+    
         
     def load_assets(self, verbose=True):
         self.model_lib = {}
@@ -319,14 +365,16 @@ class TaglessSceneReplica:
         # Create Visual Markers
         # self.create_visual_only_bars()
         if self.viz_rings:
-            self.create_visual_only_circle(diameter=0.6)
-            self.create_visual_only_circle(diameter=0.45) # TODO: Separate out rotation indicator to separate function
+            self.create_visual_only_circle(diameter=0.609) # Turntable Outer Diameter
+            # self.create_visual_only_circle(diameter=0.45) # Turntable top inner ring diameter
         if self.viz_rotation:
             self.create_visual_only_rotation_indicator(dist_from_center=0.1,length=0.25)
         if self.viz_floor:
             self.create_visual_only_floor(width=0.33,color=[0,0,1,0.5])
-        if self.viz_center:
+        if self.viz_center_post:
             self.create_visual_only_center_post(height=0.2)
+        if self.viz_center_x:
+            self.create_visual_only_center_x()
 
         # Load Scene Objects
         data = np.load(os.path.join(self.scene_path, scene_file), allow_pickle=True)

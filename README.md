@@ -5,6 +5,7 @@
 This implementation removes the need for AprilTag registration, instead relying on known camera intrinsics/extrinsics and turntable position to reliably project scenes onto images collected using the MOAD rig.   
 - The provided example scenes (with clutter metrics) were generated using the [Clutter Metrics repo](https://github.com/JohnBrann/clutter_metrics). 
 - Examples of the camera parameter files required to render scenes can be found on the [MOAD Control Software Github](https://github.com/pgavriel/moad_cui/tree/main-linux/calibration/55mm).  
+- All models to be used within scenes need to be defined in URDF files. There is a script within the [MOADv2 Dataset Repository](https://github.com/pgavriel/MOADv2) for creating URDF versions of fused OBJ models within the MOADv2 file structure.  
  
 <img src="assets/replica_demo.gif" width="100%" alt="Demo">  
 
@@ -17,7 +18,7 @@ pip install opencv-python pybullet
 
 ## Usage
 
-#### To view one of the example scenes:  
+#### To preview one of the example scenes in PyBullet:  
 ```python
 python3 view_scene.py
 ```
@@ -28,4 +29,7 @@ Then in the terminal select which scene to view.
 python3 replica_live_viewer.py
 ```  
 The primary purpose of this script is to visualize scenes on top of live views from the MOAD rig cameras in order to replicate a scene before scanning. If no live views are found, it will default to fallback static background images, but still use the camera parameters from the MOAD rig.  
-Try using *--help* to see all the available parameters for setting paths.
+Try using *--help* to see all the available parameters for setting paths.   
+   
+   
+*NOTE: While this repository comes with sample data, if it is being used as a submodule for the MOAD control software, I recommend storing your asset data (scenes/models) in a separate folder.*   

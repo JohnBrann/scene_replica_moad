@@ -1,7 +1,7 @@
 {
-  "scene_file": "batch1_001/scene_replica.npz",
+  "scene_file": "batch1_007/scene_replica.npz",
   "WORLD_OFFSET": [0, 0, 0],
-  "CALIBRATION_OFFSET": [0.025, 0.01, -0.015],
+  "CALIBRATION_OFFSET": [0.01, 0.006, -0.015],
   
   "model_library_dir": "assets/object_sets/moad-atb1",
   "scenes_dir": "assets/scenes",
@@ -15,5 +15,6 @@
   "visualize_rings": true,
   "visualize_rotation": true,
   "visualize_floor": false,
-  "visualize_center": true
+  "visualize_center_post": true,
+  "visualize_center_x": true
 }

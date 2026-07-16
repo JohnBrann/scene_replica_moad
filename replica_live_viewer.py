@@ -789,7 +789,8 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="MOAD liveview overlay: composites a PyBullet scene render "
-                     "on top of live DSLR feeds for scene alignment verification."
+                     "on top of live DSLR feeds for scene alignment verification.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
     # ── Paths ──────────────────────────────────────────────────────────────────
@@ -821,7 +822,7 @@ if __name__ == "__main__":
                         help="Filename of the lockfile used while the live frame is being written")
 
     # ── Interaction step sizes ────────────────────────────────────────────────
-    parser.add_argument("--offset-step", type=float, default=0.005,
+    parser.add_argument("--offset-step", type=float, default=0.001,
                         help="Metres per keypress for global offset adjustment (I/J/K/L/U/O)")
     parser.add_argument("--rotation-step-large", type=float, default=10.0,
                         help="Degrees per keypress for turntable rotation (A/D)")
