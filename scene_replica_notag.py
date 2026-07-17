@@ -359,7 +359,7 @@ class TaglessSceneReplica:
         self.scene_layouts = glob.glob(os.path.join(self.scene_path, "*.npz"))
         if verbose: print(f"Found {len(self.scene_layouts)} scene layout npz files...")
 
-    def load_scene(self, scene_file, verbose=True):
+    def load_scene(self, scene_file, full_path=False, verbose=True):
         if verbose: print(f"Loading Scene: \"{scene_file}\"...")
         p.resetSimulation()
         # Create Visual Markers
@@ -377,7 +377,10 @@ class TaglessSceneReplica:
             self.create_visual_only_center_x()
 
         # Load Scene Objects
-        data = np.load(os.path.join(self.scene_path, scene_file), allow_pickle=True)
+        if full_path: # Load the passed argument as the full path
+            data = np.load(scene_file, allow_pickle=True)
+        else: # Append the scene file to the scene path root loaded from config
+            data = np.load(os.path.join(self.scene_path, scene_file), allow_pickle=True)
         model_names = data["model_names"]
         poses = data["poses"]
         for model_name, pose in zip(model_names, poses):

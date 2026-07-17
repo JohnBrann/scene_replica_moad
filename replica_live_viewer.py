@@ -652,7 +652,13 @@ def main(args):
         t_cw_cv      = t_init,
         scene_config = scene_cfg,
     )
-    scene.load_scene(scene_cfg["scene_file"])
+    if args.scene_file is not None: # Load the scene path passed as argument
+        print("NOTE: Overriding scene specified in scene_replica config. Loading scene sent as command line arg.")
+        scene_npz_path = args.scene_file # Full path
+        scene.load_scene(scene_npz_path,full_path=True)
+    else: # Load the scene path specified in the scene replica config
+        scene_npz_path = os.path.join(scene.scene_path, scene_cfg["scene_file"])
+        scene.load_scene(scene_cfg["scene_file"])
     print("  Scene loaded.\n")
 
     # ── OpenCV window ─────────────────────────────────────────────────────────
@@ -769,7 +775,7 @@ def main(args):
             # scene .npz + scene config .json into the target data folder
             # for later annotation generation.
             print("\n  Confirming scene replica...")
-            scene_npz_path = os.path.join(scene.scene_path, scene_cfg["scene_file"])
+            # scene_npz_path = os.path.join(scene.scene_path, scene_cfg["scene_file"])
             confirm_scene_replica(
                 moad_config_path  = args.moad_config,
                 scene_config_path = scene_config,
@@ -829,5 +835,9 @@ if __name__ == "__main__":
     parser.add_argument("--rotation-step-small", type=float, default=5.0,
                         help="Degrees per keypress for turntable rotation (W/S)")
 
+    # Manually override scene path specified in the scene_replica config
+    parser.add_argument("--scene-file", default=None,
+                        help="Scene (.npz) file to load. Overrides scene specified in the scene replica config being loaded.")
+    
     args = parser.parse_args()
     main(args)

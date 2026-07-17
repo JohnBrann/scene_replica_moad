@@ -3,8 +3,8 @@
   "WORLD_OFFSET": [0, 0, -0.0142],
   "CALIBRATION_OFFSET": [0.025, -0.01, -0.015],
 
-  "model_library_dir": "assets/object_sets/moad",
-  "scenes_dir": "assets/scenes",
+  "model_library_dir": "/home/csrobot/moad_control/moad_cui/scene_replica_moad/assets/object_sets/moad",
+  "scenes_dir": "/home/csrobot/moad_control/moad_cui/scene_replica_moad/assets/scenes",
   "PB_RENDER": "ER_TINY_RENDERER",
   "CAMERA_NEAR": 0.05,
   "CAMERA_FAR": 10.0,
