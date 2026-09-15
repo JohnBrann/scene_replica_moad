@@ -15,5 +15,6 @@
   "visualize_rings": true,
   "visualize_rotation": true,
   "visualize_floor": false,
-  "visualize_center": true
+  "visualize_center": true,
+  "visualize_logo": false
 }

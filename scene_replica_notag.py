@@ -104,6 +104,7 @@ class TaglessSceneReplica:
         self.viz_floor = scene_config["visualize_floor"]
         self.viz_center_post = scene_config["visualize_center_post"]
         self.viz_center_x = scene_config["visualize_center_x"]
+        self.viz_logo = scene_config["visualize_logo"]
 
         # Internal states
         self.model_lib = {}
@@ -331,7 +332,49 @@ class TaglessSceneReplica:
                 basePosition            = np.array([0.0, 0.0, z_pos]),
                 baseOrientation         = quat,
             )
-    
+
+    def create_visual_only_mesh(
+        self,
+        mesh_path:  str,
+        position:   list[float] = [0.0, 0.0, 0.12],
+        scale:      float       = 0.01,
+        rotation_euler: list[float] = [1.57, 0.0, 0.0],
+        color:      list[float] = [0.8, 0.8, 0.8, 0.8],
+    ) -> int:
+        """
+        Creates a visual-only body from a mesh file (.obj, .stl, etc.)
+        with a specified position, uniform scale, and Euler rotation.
+        Useful for previewing object models in the scene without physics.
+
+        Args:
+            mesh_path      : path to the mesh file
+            position       : [x, y, z] position in world space (metres)
+            scale          : uniform scale factor applied to the mesh
+            rotation_euler : [roll, pitch, yaw] in radians (XYZ Euler)
+            color          : [r, g, b, a] RGBA colour overlay
+
+        Returns:
+            body_id of the created multibody (useful if you want to remove it later)
+        """
+        print("LOADING MESH")
+        vis = p.createVisualShape(
+            shapeType    = p.GEOM_MESH,
+            fileName     = mesh_path,
+            meshScale    = [scale, scale, scale],
+            rgbaColor    = color,
+        )
+
+        quat = p.getQuaternionFromEuler(rotation_euler)
+
+        body_id = p.createMultiBody(
+            baseMass                = 0,
+            baseVisualShapeIndex    = vis,
+            baseCollisionShapeIndex = -1,
+            basePosition            = position,
+            baseOrientation         = quat,
+        )
+
+        return body_id
         
     def load_assets(self, verbose=True):
         self.model_lib = {}
@@ -375,6 +418,9 @@ class TaglessSceneReplica:
             self.create_visual_only_center_post(height=0.2)
         if self.viz_center_x:
             self.create_visual_only_center_x()
+        if self.viz_logo:
+            mesh_path = "/home/csrobot/moad_control/scene_replica_moad/assets/object_sets/moad-atb1/NERVE_LOGO/NERVE_LOGO.obj"
+            self.create_visual_only_mesh(mesh_path)
 
         # Load Scene Objects
         if full_path: # Load the passed argument as the full path

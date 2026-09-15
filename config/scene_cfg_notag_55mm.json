@@ -1,9 +1,9 @@
 {
   "scene_file": "batch1_007/scene_replica.npz",
   "WORLD_OFFSET": [0, 0, 0],
-  "CALIBRATION_OFFSET": [0.01, 0.006, -0.015],
+  "CALIBRATION_OFFSET": [ 0.021, -0.007, -0.015],
   
-  "model_library_dir": "/home/csrobot/moad_control/moad_cui/scene_replica_moad/assets/object_sets/moad-atb1",
+  "model_library_dir": "/home/csrobot/moad_control/clutter_metrics/data_collection/object_sets/experiment2",
   "scenes_dir": "/home/csrobot/moad_control/moad_cui/scene_replica_moad/assets/scenes",
   "PB_RENDER": "ER_TINY_RENDERER",
   "CAMERA_NEAR": 0.05,
@@ -16,5 +16,6 @@
   "visualize_rotation": true,
   "visualize_floor": false,
   "visualize_center_post": true,
-  "visualize_center_x": true
+  "visualize_center_x": true,
+  "visualize_logo": true
 }
