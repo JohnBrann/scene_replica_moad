@@ -274,15 +274,56 @@ def check_extent_units(diag_mm: float, obj_name: str) -> None:
         print(f"  {'!' * 74}")
 
 
+def transform_ply_preserving(src: str, dst: str, scale: float,
+                             R: np.ndarray | None = None) -> None:
+    """
+    Apply  v = R @ (scale * v)  to a PLY's vertex positions, rotate its normals
+    by R, and write it back with EVERY other property untouched — names, types,
+    order, colours, UVs, faces, binary/ASCII format and byte order.
+
+    This replaces a trimesh load/export round trip, which re-encodes the file
+    according to trimesh's own data model. trimesh holds one visual per mesh,
+    so a PLY with BOTH vertex colours and UVs (as Blender writes after a
+    texture bake) comes back with the colours as a non-standard
+    "property list uchar uchar color" that CloudCompare (and possibly the
+    BOP toolkit's PLY reader) cannot load.
+    """
+    from plyfile import PlyData
+
+    ply = PlyData.read(src)
+    v = ply["vertex"].data
+    names = v.dtype.names
+    R = np.eye(3) if R is None else np.asarray(R, dtype=np.float64)
+
+    pos = np.stack([v["x"], v["y"], v["z"]], axis=1).astype(np.float64)
+    pos = (pos * scale) @ R.T
+    for i, c in enumerate("xyz"):
+        v[c] = pos[:, i].astype(v.dtype[c])
+
+    if all(n in names for n in ("nx", "ny", "nz")):
+        # Normals are directions: a uniform scale leaves them unchanged, a
+        # rotation rotates them. Re-normalise to absorb float32 round-off.
+        nrm = np.stack([v["nx"], v["ny"], v["nz"]], axis=1).astype(np.float64) @ R.T
+        length = np.linalg.norm(nrm, axis=1, keepdims=True)
+        nrm = np.divide(nrm, length, out=np.zeros_like(nrm), where=length > 0)
+        for i, c in enumerate(("nx", "ny", "nz")):
+            v[c] = nrm[:, i].astype(v.dtype[c])
+
+    ply.comments.append(f"moad_to_bop: positions x{scale:g}"
+                        + ("" if np.allclose(R, np.eye(3)) else ", rotated by model-frame R_fix"))
+    ply.write(dst)
+
+
 def copy_and_scale_ply(src: str, dst: str, scale: float, obj_name: str,
                        R_fix: np.ndarray | None = None) -> bool:
     """
     Copy a source mesh into models_eval/, converting units to mm and
     rotating it into the annotation frame:  v = R_fix @ (scale * v_source).
 
-    With scale 1 and no rotation the file is copied byte-for-byte (no
-    re-encode, preserving colours/normals exactly). Otherwise the mesh is
-    loaded, transformed about the origin, and written back out.
+    With scale 1 and no rotation the file is copied byte-for-byte. Otherwise
+    PLY sources go through transform_ply_preserving(), which changes only
+    positions and normals and keeps the file's exact schema, so the result
+    opens anywhere the source did. Non-PLY sources fall back to trimesh.
     """
     rotate = R_fix is not None and not np.allclose(R_fix, np.eye(3))
     if not os.path.isfile(src):
@@ -292,9 +333,23 @@ def copy_and_scale_ply(src: str, dst: str, scale: float, obj_name: str,
     src_verts = read_ply_vertices(src)
     src_size, src_diag = describe_extent(src_verts)
 
+    method = "copied unchanged"
     if scale == 1.0 and not rotate:
         shutil.copy2(src, dst)
+    elif src.lower().endswith(".ply"):
+        try:
+            transform_ply_preserving(src, dst, scale, R_fix if rotate else None)
+            method = "vertices transformed, file schema preserved (plyfile)"
+        except ImportError:
+            print("  [ERROR] plyfile is required to rescale PLY models without "
+                  "re-encoding them: pip install plyfile")
+            return False
+        except Exception as e:
+            print(f"  [ERROR] could not rescale {src}: {type(e).__name__}: {e}")
+            return False
     else:
+        # Non-PLY source: trimesh is the only option. Its output schema
+        # follows trimesh's data model, not the source file's.
         try:
             import trimesh
             mesh = trimesh.load(src, process=False)
@@ -302,6 +357,7 @@ def copy_and_scale_ply(src: str, dst: str, scale: float, obj_name: str,
             T[:3, :3] = (R_fix if rotate else np.eye(3)) * scale
             mesh.apply_transform(T)          # scale + rotate about the origin
             mesh.export(dst)
+            method = "vertices transformed (trimesh re-export)"
         except Exception as e:
             print(f"  [ERROR] could not rescale {src}: {type(e).__name__}: {e}")
             print(f"          install trimesh, or pre-scale the mesh to mm")
@@ -312,8 +368,7 @@ def copy_and_scale_ply(src: str, dst: str, scale: float, obj_name: str,
 
     print(f"  [MODEL SCALE] {obj_name}")
     print(f"      source : {src}")
-    print(f"      factor : x{scale:g}   "
-          f"({'copied unchanged' if scale == 1.0 and not rotate else 'vertices transformed'})")
+    print(f"      factor : x{scale:g}   ({method})")
     if rotate:
         print(f"      rotate : R_fix into annotation frame "
               f"(source +Z -> {np.round(R_fix @ [0, 0, 1], 3).tolist()})")
@@ -1168,7 +1223,7 @@ def main():
                         help="The name of the overall dataset to add the target scene to. "
                             "Dataset must be defined in bop_toolkit_lib/dataset_params.py")
     # ── Model assets ──────────────────────────────────────────────────────────
-    parser.add_argument("--model-dir",  default="/home/csrobot/MOADv2/data/ply_for_BOP",
+    parser.add_argument("--model-dir",  default="/home/csrobot/MOADv2/data/ply_for_BOP_decimated",
                         help="Directory containing per-object subfolders with "
                              "pre-converted .ply files. If provided, PLY files "
                              "are copied to meta/models/obj_XXXXXX.ply. "

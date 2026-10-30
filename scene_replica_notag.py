@@ -8,11 +8,16 @@ try:
     # import cv2
     import numpy as np
     import pybullet as p
+    import pkgutil
+    egl = pkgutil.get_loader('eglRenderer')
+    import pybullet_data
+
 
 except Exception as e:
     print(f"Error importing modules: {e}")
     print("Please ensure all required modules are installed and properly configured.")
     exit()
+
 
 def Rt_to_T(R, t):
     R = np.asarray(R, dtype=float)
@@ -76,6 +81,13 @@ class TaglessSceneReplica:
         print("\n=== Initializing Scene Replica Object ===")
         # Initial state
         self.pb = p.connect(p.DIRECT)
+        # Load EGL Renderer
+        # egl = pkgutil.get_loader("eglRenderer")
+        print(f"EGL: {egl.get_filename()}")
+        # plugin = p.loadPlugin(egl.get_filename(), "_eglRendererPlugin")
+        p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        plugin = p.loadPlugin(egl.get_filename(), "_eglRendererPlugin")
+        print("plugin=", plugin)
         self.cam_K = cam_K
         self.W = W
         self.H = H

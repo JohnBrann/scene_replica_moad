@@ -5,7 +5,7 @@
   
   "model_library_dir": "/home/csrobot/moad_control/clutter_metrics/data_collection/object_sets/experiment2",
   "scenes_dir": "/home/csrobot/moad_control/moad_cui/scene_replica_moad/assets/scenes",
-  "PB_RENDER": "ER_TINY_RENDERER",
+  "PB_RENDER": "ER_BULLET_HARDWARE_OPENGL",
   "CAMERA_NEAR": 0.05,
   "CAMERA_FAR": 10.0,
 
